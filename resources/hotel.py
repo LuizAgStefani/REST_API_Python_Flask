@@ -1,5 +1,6 @@
 from flask_restful import Resource, reqparse
 from models.hotel import HotelModel
+from models.site import SiteModel
 from resources.filtros import consulta_sem_cidade, consulta_com_cidade, normalize_path_params
 from flask_jwt_extended import jwt_required
 import sqlite3
@@ -42,7 +43,8 @@ class Hoteis(Resource):
                 'nome': linha[1],
                 'estrelas': linha[2],
                 'diaria': linha[3],
-                'cidade': linha[4]
+                'cidade': linha[4],
+                'site_id': linha[5]
             })
 
         return {'hoteis': hoteis}
@@ -50,13 +52,15 @@ class Hoteis(Resource):
 
 class Hotel(Resource):
 
-    argumentos = reqparse.RequestParser()
-    argumentos.add_argument('nome', type=str, required=True,
-                            help="The field 'nome' cannot be left blank.")
-    argumentos.add_argument('estrelas', type=float, required=True,
-                            help="The field 'estrelas' cannot be left blank.")
-    argumentos.add_argument('diaria')
-    argumentos.add_argument('cidade')
+    atributos = reqparse.RequestParser()
+    atributos.add_argument('nome', type=str, required=True,
+                           help="The field 'nome' cannot be left blank.")
+    atributos.add_argument('estrelas', type=float, required=True,
+                           help="The field 'estrelas' cannot be left blank.")
+    atributos.add_argument('diaria')
+    atributos.add_argument('cidade')
+    atributos.add_argument('site_id', required=True,
+                           help="The field 'site_id' cannot be left blank.")
 
     def get(self, hotel_id):
         hotel = HotelModel.find_hotel(id=hotel_id)
@@ -69,9 +73,12 @@ class Hotel(Resource):
         if HotelModel.find_hotel(hotel_id):
             return {"message": "Hotel id '{}' already exists.".format(hotel_id)}, 400
 
-        dados = Hotel.argumentos.parse_args()
+        dados = Hotel.atributos.parse_args()
 
         hotel = HotelModel(hotel_id, **dados)
+
+        if not SiteModel.find_by_id(dados.get('site_id')):
+            return {'message': 'The hotel must be associated to a valid site id'}, 400
 
         try:
             hotel.save_hotel()
@@ -83,7 +90,7 @@ class Hotel(Resource):
     @jwt_required
     def put(self, hotel_id):
 
-        dados = Hotel.argumentos.parse_args()
+        dados = Hotel.atributos.parse_args()
 
         hotel_encontrado = HotelModel.find_hotel(hotel_id)
         if hotel_encontrado:
